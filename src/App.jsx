@@ -1,13 +1,8 @@
 import { useState, useEffect } from "react";
+import { API_URL } from "./config/env";
 
-// ============================================================
-// CONFIG
-// ============================================================
-
-const API_URL = import.meta.env.VITE_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:3001/api'
-    : '/_/backend/api');
+// DEBUG (pode remover depois)
+console.log("API_URL:", API_URL);
 
 // ============================================================
 // AUTH
@@ -20,37 +15,54 @@ const Auth = {
 };
 
 // ============================================================
+// HTTP CLIENT
+// ============================================================
+
+async function httpPost(body) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    return { ok: false, msg: `HTTP_${res.status}` };
+  }
+
+  const text = await res.text();
+
+  if (!text) return { ok: false, msg: "RESPOSTA_VAZIA" };
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, msg: "JSON_INVALIDO" };
+  }
+}
+
+// ============================================================
 // CORE API
 // ============================================================
 
 async function callAPI(action, payload = {}, useAuth = true) {
+  const body = { action, payload };
+
+  if (useAuth) {
+    const token = Auth.getToken();
+
+    if (!token) {
+      return { ok: false, msg: "NAO_AUTENTICADO" };
+    }
+
+    body.token = token;
+  }
+
   try {
-    const body = { action, payload };
-
-    if (useAuth) {
-      const token = Auth.getToken();
-      if (!token) return { ok: false, msg: "NAO_AUTENTICADO" };
-      body.token = token;
-    }
-
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      return { ok: false, msg: "RESPOSTA_INVALIDA" };
-    }
-
-    return data;
-
-  } catch {
+    return await httpPost(body);
+  } catch (err) {
+    console.error("Erro de conexão:", err);
     return { ok: false, msg: "ERRO_CONEXAO" };
   }
 }
@@ -70,10 +82,7 @@ const API = {
     callAPI("listarReservas"),
 
   criarReserva: (dados) =>
-    callAPI("criarReserva", dados),
-
-  salvarItem: (dados) =>
-    callAPI("salvarItem", dados)
+    callAPI("criarReserva", dados)
 };
 
 // ============================================================
@@ -82,31 +91,19 @@ const API = {
 
 async function bootstrap() {
   const existingToken = Auth.getToken();
-  if (existingToken) {
-    console.log("✅ Token já existe");
-    return true;
-  }
 
-  console.log("🔄 Criando tenant...");
+  if (existingToken) return true;
+
   const tenant = await API.criarTenant("Tenant Front");
-  console.log("Resposta tenant:", tenant);
-  
-  if (!tenant.ok || !tenant.data) {
-    console.error("❌ Erro ao criar tenant:", tenant);
-    return false;
-  }
 
-  console.log("🔄 Fazendo login...");
+  if (!tenant.ok || !tenant.data) return false;
+
   const login = await API.login("dev@test.com", tenant.data.sheet_id);
-  console.log("Resposta login:", login);
-  
-  if (!login.ok || !login.data) {
-    console.error("❌ Erro ao fazer login:", login);
-    return false;
-  }
+
+  if (!login.ok || !login.data) return false;
 
   Auth.setToken(login.data.token);
-  console.log("✅ Bootstrap completo. Token:", login.data.token);
+
   return true;
 }
 
@@ -117,28 +114,6 @@ async function bootstrap() {
 function Loader() {
   return <div style={{ padding: 20 }}>Carregando...</div>;
 }
-
-function Toast({ msg }) {
-  if (!msg) return null;
-
-  return (
-    <div style={{
-      position: "fixed",
-      bottom: 20,
-      right: 20,
-      background: "#1A1D2E",
-      color: "#fff",
-      padding: "10px 14px",
-      borderRadius: 6
-    }}>
-      {msg}
-    </div>
-  );
-}
-
-// ============================================================
-// LAYOUT
-// ============================================================
 
 function Sidebar({ setView }) {
   return (
@@ -157,125 +132,36 @@ function Topbar() {
   );
 }
 
-// ============================================================
-// TABLE
-// ============================================================
-
-function DataTable({ data }) {
-  if (!data.length) {
-    return <div style={{ padding: 20 }}>Nenhuma reserva encontrada</div>;
-  }
-
-  return (
-    <table style={{ width: "100%", background: "#fff" }}>
-      <tbody>
-        {data.map(r => (
-          <tr key={r.id}>
-            <td style={{ padding: 10 }}>{r.titulo}</td>
-            <td>{r.status}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-// ============================================================
-// MODAL
-// ============================================================
-
-function Modal({ open, onClose, onSave }) {
-  const [titulo, setTitulo] = useState("");
-
-  if (!open) return null;
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)" }}>
-      <div style={{ background: "#fff", padding: 20, margin: "10% auto", width: 320 }}>
-        <h3>Nova Reserva</h3>
-
-        <input
-          placeholder="Título"
-          value={titulo}
-          onChange={e => setTitulo(e.target.value)}
-          style={{ width: "100%", padding: 8 }}
-        />
-
-        <br /><br />
-
-        <button onClick={() => onSave({ titulo })}>Salvar</button>
-        <button onClick={onClose} style={{ marginLeft: 10 }}>Cancelar</button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// RESERVAS
-// ============================================================
-
 function Reservas() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(false);
-  const [msg, setMsg] = useState(null);
 
   async function load() {
     setLoading(true);
-
     const res = await API.listarReservas();
 
-    if (res.ok && Array.isArray(res.data)) {
-      setData(res.data);
-    } else {
-      setMsg(res.msg || res.error || "Erro ao carregar");
-    }
+    if (res.ok) setData(res.data || []);
 
     setLoading(false);
   }
 
   useEffect(() => {
-    (async () => {
+    const run = async () => {
       await load();
-    })();
-  }, []);
+    };
 
-  async function criar(dados) {
-    const res = await API.criarReserva({
-      ...dados,
-      data_inicio: new Date().toISOString(),
-      data_fim: new Date(Date.now() + 3600000).toISOString()
-    });
-
-    if (!res.ok) {
-      setMsg(res.msg || res.error);
-    } else {
-      setMsg("Reserva criada");
-      setModal(false);
-      load();
-    }
-
-    setTimeout(() => setMsg(null), 2000);
-  }
+  run();
+}, []);
 
   return (
     <div>
       <h2>Reservas</h2>
-
-      <button onClick={() => setModal(true)}>Nova</button>
-
-      {loading ? <Loader /> : <DataTable data={data} />}
-
-      <Modal open={modal} onClose={() => setModal(false)} onSave={criar} />
-
-      <Toast msg={msg} />
+      {loading ? <Loader /> : data.map(r => (
+        <div key={r.id}>{r.titulo}</div>
+      ))}
     </div>
   );
 }
-
-// ============================================================
-// DASHBOARD
-// ============================================================
 
 function Dashboard() {
   return <h2>Dashboard</h2>;
@@ -290,33 +176,25 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   async function init() {
-    try {
-      console.log("🚀 Iniciando aplicação...");
-      const ok = await bootstrap();
-      console.log("Bootstrap resultado:", ok);
-      setReady(ok);
-      if (!ok) {
-        console.error("Bootstrap falhou!");
-      }
-    } catch (err) {
-      console.error("Erro no init:", err);
-      setReady(false);
-    }
+    const ok = await bootstrap();
+    setReady(ok);
   }
 
   useEffect(() => {
-    (async () => {
+    const run = async () => {
       await init();
-    })();
+    };
+
+    run();
   }, []);
 
   if (!ready) return <Loader />;
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "sans-serif" }}>
+    <div style={{ display: "flex", height: "100vh" }}>
       <Sidebar setView={setView} />
 
-      <div style={{ flex: 1, background: "#F7F8FA" }}>
+      <div style={{ flex: 1 }}>
         <Topbar />
 
         <div style={{ padding: 20 }}>
