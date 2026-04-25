@@ -25,6 +25,7 @@ let db = {
 // POST /api
 app.post('/api', async (req, res) => {
   try {
+    console.log("📨 Requisição recebida:", req.body);
     const { action, payload, token } = req.body;
 
     if (!action) {
@@ -33,10 +34,11 @@ app.post('/api', async (req, res) => {
 
     // Route to handler
     const result = await handleAction(action, payload, token);
+    console.log("✅ Resposta:", result);
     res.json(result);
 
   } catch (error) {
-    console.error(error);
+    console.error("❌ Erro na rota /api:", error);
     res.status(500).json({ ok: false, msg: "Erro no servidor" });
   }
 });
