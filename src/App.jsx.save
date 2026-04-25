@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react";
 // CONFIG
 // ============================================================
 
-// 🔥 PRODUÇÃO (Render)
 const API_URL = "https://sistema-gestao-cultural.onrender.com/api";
+
 
 // ============================================================
 // AUTH
@@ -16,6 +16,7 @@ const Auth = {
   setToken: (t) => localStorage.setItem("token", t),
   clear: () => localStorage.removeItem("token")
 };
+
 
 // ============================================================
 // CORE API
@@ -54,6 +55,7 @@ async function callAPI(action, payload = {}, useAuth = true) {
   }
 }
 
+
 // ============================================================
 // API
 // ============================================================
@@ -76,15 +78,15 @@ const API = {
     callAPI("salvarItem", dados)
 };
 
+
 // ============================================================
 // BOOTSTRAP
 // ============================================================
 
 async function bootstrap() {
 
-  // 🔥 evita recriar tenant sempre
-  const existingToken = Auth.getToken();
-  if (existingToken) return true;
+  // 🔒 evita criar tenant toda vez
+  if (Auth.getToken()) return true;
 
   const tenant = await API.criarTenant("Tenant Front");
 
@@ -98,6 +100,7 @@ async function bootstrap() {
 
   return true;
 }
+
 
 // ============================================================
 // UI COMPONENTS
@@ -125,6 +128,7 @@ function Toast({ msg }) {
 function Loader() {
   return <div style={{ padding: 20 }}>Carregando...</div>;
 }
+
 
 // ============================================================
 // LAYOUT
@@ -165,6 +169,7 @@ function Topbar() {
   );
 }
 
+
 // ============================================================
 // TABLE
 // ============================================================
@@ -188,6 +193,7 @@ function DataTable({ data }) {
     </table>
   );
 }
+
 
 // ============================================================
 // MODAL
@@ -233,6 +239,7 @@ function Modal({ open, onClose, onSave }) {
     </div>
   );
 }
+
 
 // ============================================================
 // RESERVAS
@@ -297,6 +304,7 @@ function Reservas() {
   );
 }
 
+
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -304,6 +312,7 @@ function Reservas() {
 function Dashboard() {
   return <h2>Dashboard</h2>;
 }
+
 
 // ============================================================
 // APP
@@ -341,3 +350,7 @@ export default function App() {
     </div>
   );
 }
+nano src/App.jsx
+
+
+
