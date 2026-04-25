@@ -1,147 +1,105 @@
-require('dotenv').config();
+/* eslint-env node */
 
-const express = require('express');
-const cors = require('cors');
-const fetch = require('node-fetch');
+const express = require("express");
+const cors = require("cors");
+const fetch = require("node-fetch");
 
 const app = express();
+
+// ============================================================
+// CONFIG
+// ============================================================
+
 const PORT = process.env.PORT || 3001;
+const GAS_URL = process.env.GAS_URL;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ============================================================
+// CORS (CONTROLADO E SEGURO)
+// ============================================================
 
-// Google Apps Script URL
-const GAS_URL = process.env.GAS_URL || "https://script.google.com/macros/s/AKfycbzwGn1IHVleKx40uOSUB-sYF4Cpf9YKmeJ0Q9YLcV7ZiPYA155MiClqdxeEgqhf3Lra8w/exec";
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://sistema-cultural-psi.vercel.app",
+  "https://sistema-cultural-kclsj13o5-gestao-cultural.vercel.app"
+];
 
-// State
-let db = {
-  tenants: {},
-  users: {},
-  reservas: []
-};
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
 
-// POST /api
-app.post('/api', async (req, res) => {
-  try {
-    console.log("📨 Requisição recebida:", req.body);
-    const { action, payload, token } = req.body;
-
-    if (!action) {
-      return res.json({ ok: false, msg: "action obrigatória" });
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
 
-    // Route to handler
-    const result = await handleAction(action, payload, token);
-    console.log("✅ Resposta:", result);
-    res.json(result);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true
+}));
 
-  } catch (error) {
-    console.error("❌ Erro na rota /api:", error);
-    res.status(500).json({ ok: false, msg: "Erro no servidor" });
-  }
+app.use(express.json());
+
+// ============================================================
+// HEALTHCHECK
+// ============================================================
+
+app.get("/", (req, res) => {
+  return res.json({
+    ok: true,
+    service: "backend",
+    status: "online",
+    timestamp: new Date().toISOString()
+  });
 });
 
-async function handleAction(action, payload, token) {
+// ============================================================
+// CORE API (PROXY PARA GOOGLE APPS SCRIPT)
+// ============================================================
+
+app.post("/core", async (req, res) => {
   try {
-    switch (action) {
-      case "criarTenant":
-        return criarTenant(payload);
-      
-      case "login":
-        return login(payload);
-      
-      case "listarReservas":
-        return listarReservas(payload, token);
-      
-      case "criarReserva":
-        return criarReserva(payload, token);
-      
-      default:
-        // Fallback: try GAS
-        return await callGAS(action, payload, token);
+    if (!GAS_URL) {
+      return res.status(500).json({
+        ok: false,
+        error: "GAS_URL_NOT_CONFIGURED"
+      });
     }
-  } catch (err) {
-    console.error(err);
-    return { ok: false, msg: "Erro ao processar" };
-  }
-}
 
-function criarTenant(payload) {
-  const { nome } = payload;
-  const id = "sheet_" + Date.now();
-  
-  db.tenants[id] = { nome, id };
-  
-  return { ok: true, data: { sheet_id: id, nome } };
-}
-
-function login(payload) {
-  const { email, sheet_id } = payload;
-  const token = "token_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-  
-  db.users[token] = { email, sheet_id, token };
-  
-  return { ok: true, data: { token, email } };
-}
-
-function listarReservas(payload, token) {
-  if (!token || !db.users[token]) {
-    return { ok: false, msg: "Não autenticado" };
-  }
-  
-  const user = db.users[token];
-  const reservas = db.reservas.filter(r => r.sheet_id === user.sheet_id);
-  
-  return { ok: true, data: reservas };
-}
-
-function criarReserva(payload, token) {
-  if (!token || !db.users[token]) {
-    return { ok: false, msg: "Não autenticado" };
-  }
-  
-  const user = db.users[token];
-  const { titulo, data_inicio, data_fim } = payload;
-  
-  const reserva = {
-    id: "res_" + Date.now(),
-    titulo,
-    data_inicio,
-    data_fim,
-    status: "confirmada",
-    sheet_id: user.sheet_id
-  };
-  
-  db.reservas.push(reserva);
-  
-  return { ok: true, data: reserva };
-}
-
-async function callGAS(action, payload, token) {
-  try {
     const response = await fetch(GAS_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/json"
       },
-      body: `data=${encodeURIComponent(JSON.stringify({
-        action,
-        payload,
-        token
-      }))}`
+      body: JSON.stringify(req.body)
     });
 
     const text = await response.text();
-    return JSON.parse(text);
-  } catch (error) {
-    return { ok: false, msg: "Erro ao chamar GAS" };
-  }
-}
 
-app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
-  console.log(`📝 NODE_ENV: ${process.env.NODE_ENV || 'production'}`);
-  console.log(`🔗 GAS_URL: ${process.env.GAS_URL?.substring(0, 50)}...`);
+    try {
+      const data = JSON.parse(text);
+      return res.json(data);
+    } catch {
+      return res.status(500).json({
+        ok: false,
+        error: "INVALID_JSON_FROM_GAS",
+        raw: text
+      });
+    }
+
+  } catch (err) {
+    console.error("🔥 API ERROR:", err);
+
+    return res.status(500).json({
+      ok: false,
+      error: "INTERNAL_ERROR"
+    });
+  }
+});
+
+// ============================================================
+// START SERVER
+// ============================================================
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Backend rodando em http://localhost:${PORT}`);
 });
