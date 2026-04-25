@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -137,5 +139,7 @@ async function callGAS(action, payload, token) {
 }
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
+  console.log(`📝 NODE_ENV: ${process.env.NODE_ENV || 'production'}`);
+  console.log(`🔗 GAS_URL: ${process.env.GAS_URL?.substring(0, 50)}...`);
 });
