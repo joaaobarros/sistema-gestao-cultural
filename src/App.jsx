@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 // ============================================================
 // CONFIG
 // ============================================================
 
-// 🔥 PRODUÇÃO (Render)
 const API_URL = "https://sistema-gestao-cultural.onrender.com/api";
 
 // ============================================================
@@ -39,7 +38,6 @@ async function callAPI(action, payload = {}, useAuth = true) {
       body: JSON.stringify(body)
     });
 
-    // 🔒 proteção contra resposta inválida
     let data;
     try {
       data = await res.json();
@@ -49,7 +47,7 @@ async function callAPI(action, payload = {}, useAuth = true) {
 
     return data;
 
-  } catch (err) {
+  } catch {
     return { ok: false, msg: "ERRO_CONEXAO" };
   }
 }
@@ -59,7 +57,6 @@ async function callAPI(action, payload = {}, useAuth = true) {
 // ============================================================
 
 const API = {
-
   criarTenant: (nome) =>
     callAPI("criarTenant", { nome }, false),
 
@@ -81,27 +78,26 @@ const API = {
 // ============================================================
 
 async function bootstrap() {
-
-  // 🔥 evita recriar tenant sempre
   const existingToken = Auth.getToken();
   if (existingToken) return true;
 
   const tenant = await API.criarTenant("Tenant Front");
-
   if (!tenant.ok) return false;
 
   const login = await API.login("dev@test.com", tenant.data.sheet_id);
-
   if (!login.ok) return false;
 
   Auth.setToken(login.data.token);
-
   return true;
 }
 
 // ============================================================
-// UI COMPONENTS
+// UI
 // ============================================================
+
+function Loader() {
+  return <div style={{ padding: 20 }}>Carregando...</div>;
+}
 
 function Toast({ msg }) {
   if (!msg) return null;
@@ -114,16 +110,11 @@ function Toast({ msg }) {
       background: "#1A1D2E",
       color: "#fff",
       padding: "10px 14px",
-      borderRadius: 6,
-      fontSize: 14
+      borderRadius: 6
     }}>
       {msg}
     </div>
   );
-}
-
-function Loader() {
-  return <div style={{ padding: 20 }}>Carregando...</div>;
 }
 
 // ============================================================
@@ -131,35 +122,17 @@ function Loader() {
 // ============================================================
 
 function Sidebar({ setView }) {
-  const items = ["Dashboard", "Reservas"];
-
   return (
-    <div style={{
-      width: 220,
-      background: "#0F1729",
-      color: "#fff",
-      padding: 20
-    }}>
-      {items.map(i => (
-        <div
-          key={i}
-          style={{ margin: 12, cursor: "pointer" }}
-          onClick={() => setView(i)}
-        >
-          {i}
-        </div>
-      ))}
+    <div style={{ width: 220, background: "#0F1729", color: "#fff", padding: 20 }}>
+      <div onClick={() => setView("Dashboard")} style={{ margin: 12, cursor: "pointer" }}>Dashboard</div>
+      <div onClick={() => setView("Reservas")} style={{ margin: 12, cursor: "pointer" }}>Reservas</div>
     </div>
   );
 }
 
 function Topbar() {
   return (
-    <div style={{
-      background: "#fff",
-      padding: 15,
-      borderBottom: "1px solid #E2E5EF"
-    }}>
+    <div style={{ background: "#fff", padding: 15, borderBottom: "1px solid #E2E5EF" }}>
       Sistema Cultural
     </div>
   );
@@ -170,7 +143,6 @@ function Topbar() {
 // ============================================================
 
 function DataTable({ data }) {
-
   if (!data.length) {
     return <div style={{ padding: 20 }}>Nenhuma reserva encontrada</div>;
   }
@@ -194,23 +166,13 @@ function DataTable({ data }) {
 // ============================================================
 
 function Modal({ open, onClose, onSave }) {
-
   const [titulo, setTitulo] = useState("");
 
   if (!open) return null;
 
   return (
-    <div style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,0.3)"
-    }}>
-      <div style={{
-        background: "#fff",
-        padding: 20,
-        margin: "10% auto",
-        width: 320
-      }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)" }}>
+      <div style={{ background: "#fff", padding: 20, margin: "10% auto", width: 320 }}>
         <h3>Nova Reserva</h3>
 
         <input
@@ -222,13 +184,8 @@ function Modal({ open, onClose, onSave }) {
 
         <br /><br />
 
-        <button onClick={() => onSave({ titulo })}>
-          Salvar
-        </button>
-
-        <button onClick={onClose} style={{ marginLeft: 10 }}>
-          Cancelar
-        </button>
+        <button onClick={() => onSave({ titulo })}>Salvar</button>
+        <button onClick={onClose} style={{ marginLeft: 10 }}>Cancelar</button>
       </div>
     </div>
   );
@@ -239,15 +196,10 @@ function Modal({ open, onClose, onSave }) {
 // ============================================================
 
 function Reservas() {
-
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [msg, setMsg] = useState(null);
-
-  useEffect(() => {
-    load();
-  }, []);
 
   async function load() {
     setLoading(true);
@@ -263,8 +215,13 @@ function Reservas() {
     setLoading(false);
   }
 
-  async function criar(dados) {
+  useEffect(() => {
+    (async () => {
+      await load();
+    })();
+  }, []);
 
+  async function criar(dados) {
     const res = await API.criarReserva({
       ...dados,
       data_inicio: new Date().toISOString(),
@@ -310,22 +267,21 @@ function Dashboard() {
 // ============================================================
 
 export default function App() {
-
   const [view, setView] = useState("Dashboard");
   const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    init();
-  }, []);
 
   async function init() {
     const ok = await bootstrap();
     setReady(ok);
   }
 
-  if (!ready) {
-    return <Loader />;
-  }
+  useEffect(() => {
+    (async () => {
+      await init();
+    })();
+  }, []);
+
+  if (!ready) return <Loader />;
 
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: "sans-serif" }}>
