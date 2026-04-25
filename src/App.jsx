@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 // CONFIG
 // ============================================================
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = "https://sistema-gestao-cultural.onrender.com/api";
 
 
 // ============================================================
@@ -24,10 +24,7 @@ const Auth = {
 
 async function callAPI(action, payload = {}, useAuth = true) {
   try {
-    const body = {
-      action,
-      payload
-    };
+    const body = { action, payload };
 
     if (useAuth) {
       const token = Auth.getToken();
@@ -43,13 +40,15 @@ async function callAPI(action, payload = {}, useAuth = true) {
       body: JSON.stringify(body)
     });
 
-    const text = await res.text();
-
+    // 🔒 proteção contra resposta inválida
+    let data;
     try {
-      return JSON.parse(text);
+      data = await res.json();
     } catch {
       return { ok: false, msg: "RESPOSTA_INVALIDA" };
     }
+
+    return data;
 
   } catch (err) {
     return { ok: false, msg: "ERRO_CONEXAO" };
@@ -86,6 +85,7 @@ const API = {
 
 async function bootstrap() {
 
+  // 🔒 evita criar tenant toda vez
   if (Auth.getToken()) return true;
 
   const tenant = await API.criarTenant("Tenant Front");
