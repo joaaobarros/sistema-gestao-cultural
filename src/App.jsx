@@ -82,15 +82,31 @@ const API = {
 
 async function bootstrap() {
   const existingToken = Auth.getToken();
-  if (existingToken) return true;
+  if (existingToken) {
+    console.log("✅ Token já existe");
+    return true;
+  }
 
+  console.log("🔄 Criando tenant...");
   const tenant = await API.criarTenant("Tenant Front");
-  if (!tenant.ok) return false;
+  console.log("Resposta tenant:", tenant);
+  
+  if (!tenant.ok || !tenant.data) {
+    console.error("❌ Erro ao criar tenant:", tenant);
+    return false;
+  }
 
+  console.log("🔄 Fazendo login...");
   const login = await API.login("dev@test.com", tenant.data.sheet_id);
-  if (!login.ok) return false;
+  console.log("Resposta login:", login);
+  
+  if (!login.ok || !login.data) {
+    console.error("❌ Erro ao fazer login:", login);
+    return false;
+  }
 
   Auth.setToken(login.data.token);
+  console.log("✅ Bootstrap completo. Token:", login.data.token);
   return true;
 }
 
@@ -274,8 +290,18 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   async function init() {
-    const ok = await bootstrap();
-    setReady(ok);
+    try {
+      console.log("🚀 Iniciando aplicação...");
+      const ok = await bootstrap();
+      console.log("Bootstrap resultado:", ok);
+      setReady(ok);
+      if (!ok) {
+        console.error("Bootstrap falhou!");
+      }
+    } catch (err) {
+      console.error("Erro no init:", err);
+      setReady(false);
+    }
   }
 
   useEffect(() => {
